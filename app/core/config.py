@@ -13,13 +13,13 @@ class Settings(BaseSettings):
 
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "hr@intellativ.com"
+    SMTP_USER: str = "tskgadini@gmail.com"
+    SMTP_PASSWORD: str = "lybicmvjdpmhmmch"
+    SMTP_FROM: str = "tskgadini@gmail.com"
     SMTP_FROM_NAME: str = "Intellativ HR"
-    HR_NOTIFICATION_EMAIL: str = ""  # HR email to receive notifications
-    INSURANCE_TEAM_EMAIL: str = ""   # Insurance team email
-    IT_TEAM_EMAIL: str = ""          # IT team email for email setup requests
+    HR_NOTIFICATION_EMAIL: str = "tskgadini@gmail.com"  # HR email to receive notifications
+    INSURANCE_TEAM_EMAIL: str = "tskgadini@gmail.com"   # Insurance team email
+    IT_TEAM_EMAIL: str = "tskgadini@gmail.com"  
 
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 10
