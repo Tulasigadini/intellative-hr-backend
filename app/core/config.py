@@ -4,7 +4,8 @@ from typing import List
 
 class Settings(BaseSettings):
     # DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/intellativ_hr"
-    DATABASE_URL: str = "postgresql://intellative_hr_db_user:Vz0ZTIVMO102S5Q2WST0io5kUYjd8Msr@dpg-d7bkvvlm5p6s73evs1a0-a/intellative_hr_db"
+    # config.py - fix the DATABASE_URL default
+    DATABASE_URL: str = "postgresql+asyncpg://intellative_hr_db_user:Vz0ZTIVMO102S5Q2WST0io5kUYjd8Msr@dpg-d7bkvvlm5p6s73evs1a0-a/intellative_hr_db"
     SECRET_KEY: str = "change-this-secret-key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
