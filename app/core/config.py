@@ -3,9 +3,8 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    # DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/intellativ_hr"
-    # config.py - fix the DATABASE_URL default
-    DATABASE_URL: str = "postgresql+asyncpg://intellative_hr_db_user:Vz0ZTIVMO102S5Q2WST0io5kUYjd8Msr@dpg-d7bkvvlm5p6s73evs1a0-a/intellative_hr_db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/intellativ_hr"
+    # DATABASE_URL: str = "postgresql+asyncpg://intellative_hr_db_user:Vz0ZTIVMO102S5Q2WST0io5kUYjd8Msr@dpg-d7bkvvlm5p6s73evs1a0-a/intellative_hr_db"
     SECRET_KEY: str = "change-this-secret-key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
@@ -19,7 +18,7 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: str = "Intellativ HR"
     HR_NOTIFICATION_EMAIL: str = "tskgadini@gmail.com"  # HR email to receive notifications
     INSURANCE_TEAM_EMAIL: str = "tskgadini@gmail.com"   # Insurance team email
-    IT_TEAM_EMAIL: str = "tskgadini@gmail.com"  
+    IT_TEAM_EMAIL: str = "tskgadini@gmail.com"          # IT team email for email setup requests
 
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 10
