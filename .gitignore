@@ -1,0 +1,7 @@
+echo ".env" > .gitignore
+echo ".env.example" >> .gitignore
+echo "__pycache__/" >> .gitignore
+echo "*.pyc" >> .gitignore
+echo ".pytest_cache/" >> .gitignore
+echo "venv/" >> .gitignore
+echo "*.log" >> .gitignore
