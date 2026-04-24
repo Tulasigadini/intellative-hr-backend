@@ -3,9 +3,9 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/intellativ_hr"
+    # DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/intellativ_hr"
     # DATABASE_URL: str = "postgresql+asyncpg://intellative_hr_db_user:Vz0ZTIVMO102S5Q2WST0io5kUYjd8Msr@dpg-d7bkvvlm5p6s73evs1a0-a/intellative_hr_db"
-    # DATABASE_URL="postgresql+asyncpg://doadmin:AVNS_FJnGlyfunhEotJov7rc@intellative-onboard-db-do-user-35952766-0.i.db.ondigitalocean.com:25060/defaultdb?sslmode=require"
+    DATABASE_URL="postgresql+asyncpg://doadmin:AVNS_FJnGlyfunhEotJov7rc@intellative-onboard-db-do-user-35952766-0.i.db.ondigitalocean.com:25060/defaultdb?sslmode=require"
     SECRET_KEY: str = "change-this-secret-key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
