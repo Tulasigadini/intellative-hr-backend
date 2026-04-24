@@ -122,7 +122,8 @@ class Employee(Base):
     emergency_contact_name: Mapped[Optional[str]] = mapped_column(String(200))
     emergency_contact_phone: Mapped[Optional[str]] = mapped_column(String(20))
     pan_number: Mapped[Optional[str]] = mapped_column(String(20))
-    uan_number: Mapped[Optional[str]] = mapped_column(String(30))
+    tan_number: Mapped[Optional[str]] = mapped_column(String(20))
+    uan_number: Mapped[Optional[str]] = mapped_column(String(20))
     pf_number: Mapped[Optional[str]] = mapped_column(String(30))
 
     department_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("departments.id"))

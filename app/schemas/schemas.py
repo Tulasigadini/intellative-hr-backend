@@ -121,6 +121,7 @@ class EmployeeCreate(BaseModel):
     previous_joining_date: Optional[date] = None
     previous_relieving_date: Optional[date] = None
     pan_number: Optional[str] = None
+    tan_number: Optional[str] = None
     uan_number: Optional[str] = None
     pf_number: Optional[str] = None
 
@@ -144,6 +145,7 @@ class EmployeeUpdate(BaseModel):
     relieving_date: Optional[date] = None
     status: Optional[EmployeeStatus] = None
     pan_number: Optional[str] = None
+    tan_number: Optional[str] = None
     uan_number: Optional[str] = None
     pf_number: Optional[str] = None
 
@@ -181,6 +183,7 @@ class EmployeeOut(BaseModel):
     department: Optional[DepartmentOut] = None
     role: Optional[RoleOut] = None
     pan_number: Optional[str] = None
+    tan_number: Optional[str] = None
     uan_number: Optional[str] = None
     pf_number: Optional[str] = None
     salary: Optional["EmployeeSalaryOut"] = None

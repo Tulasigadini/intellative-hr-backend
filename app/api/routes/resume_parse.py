@@ -5,12 +5,14 @@ Uses pdfminer.six for PDF text, pytesseract for image OCR, pure regex for extrac
 POST /employees/{id}/parse-resume  → structured personal fields
 POST /employees/{id}/parse-form16  → CTC / tax fields
 """
-import uuid, re, io
+import uuid, re, io, os, json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.models.models import Employee
 from app.core.deps import get_current_user, is_hr_or_admin
+from google import genai
 
 # ── regex patterns ─────────────────────────────────────────────────────────────
 
@@ -41,67 +43,200 @@ AY_RE      = re.compile(r'(?:A\.?Y\.?|assessment year)[^\d]*(\d{4}[-\u2013]\d{2,
 router = APIRouter(prefix="/parsing", tags=["resume-parse"])
 
 @router.post("/public/extract-data")
-async def public_extract_data(file: UploadFile = File(...), source: str = Form("resume")):
+async def public_extract_data(files: List[UploadFile] = File(...), source: str = Form("resume")):
     """Unauthenticated extraction for Step 0."""
-    content = await file.read()
-    if len(content) > 10 * 1024 * 1024: raise HTTPException(400, "File too large")
-    ext = file.filename.rsplit(".", 1)[-1].lower()
-    text = _get_text(content, ext)
+    return await _process_extraction(files, source)
+
+async def _process_extraction(files: List[UploadFile], source: str):
+    import tempfile
+    full_text = ""
+    filenames = []
+    temp_files_paths = []
+    
+    # Save to temp files
+    for file in files:
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024: raise HTTPException(400, f"File {file.filename} too large")
+        ext = file.filename.rsplit(".", 1)[-1].lower()
+        filenames.append(file.filename)
+        
+        # We also need to extract text for fallback
+        try:
+            full_text += _get_text(content, ext) + "\n\n"
+        except Exception:
+            pass # ignore fallback errors if it's an unsupported format
+            
+        with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp:
+            tmp.write(content)
+            temp_files_paths.append(tmp.name)
+            
+    gemini_key = os.getenv("GEMINI_KEY") or os.getenv("GEMINI_key") or "AIzaSyCUw4jPdmm_ijNnikkb1wo1MaicyKRhnEg"
+    client = genai.Client(api_key=gemini_key) if gemini_key else None
+    
+    uploaded_gemini_files = []
+    if client:
+        try:
+            for path in temp_files_paths:
+                uploaded_file = client.files.upload(file=path)
+                uploaded_gemini_files.append(uploaded_file)
+        except Exception as e:
+            print("Gemini upload failed:", e)
     
     if source == "resume":
-        res = _parse_resume(text)
+        res = {}
+        if client and uploaded_gemini_files:
+            prompt = """
+Extract the following information from this resume document. If a field is not found, leave it as an empty string. 
+Format the output as a valid JSON object.
+Required fields:
+- first_name
+- last_name
+- phone (digits only)
+- personal_email
+- date_of_birth (YYYY-MM-DD if possible)
+- gender (male/female/other)
+- city
+- state
+- pincode
+- work_history (list of objects with: 
+    - company_name (Only the name of the company, e.g. 'Intellativ India Private Limited'. Do not include prefixes like 'Working at' or 'Worked in' or extra text.), 
+    - designation (Only the exact job title, e.g. 'Software Engineer'. Do not include extra text.), 
+    - from_date (YYYY-MM-DD or YYYY-MM format), 
+    - to_date (YYYY-MM-DD or YYYY-MM format. If they are currently working there, leave this as an empty string ""), 
+    - is_current (boolean: true if they currently work here, false otherwise), 
+    - last_ctc (string)
+  )
+"""
+            is_fallback = False
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[*uploaded_gemini_files, prompt],
+                    config={"response_mime_type": "application/json"}
+                )
+                res = json.loads(response.text)
+            except Exception as e:
+                print("Gemini parsing failed, fallback to regex:", e)
+                is_fallback = True
+                res = _parse_resume(full_text)
+        else:
+            is_fallback = True
+            res = _parse_resume(full_text)
+
         return {
+            "is_fallback": is_fallback,
             "data": {
                 "personal": {
-                    "first_name": res.get("first_name"),
-                    "last_name": res.get("last_name"),
-                    "phone": res.get("phone"),
-                    "personal_email": res.get("personal_email"),
-                    "date_of_birth": res.get("date_of_birth"),
-                    "gender": res.get("gender"),
-                    "city": res.get("city"),
-                    "state": res.get("state"),
-                    "pincode": res.get("pincode"),
+                    "first_name": res.get("first_name", ""),
+                    "last_name": res.get("last_name", ""),
+                    "phone": res.get("phone", ""),
+                    "personal_email": res.get("personal_email", ""),
+                    "date_of_birth": res.get("date_of_birth", ""),
+                    "gender": res.get("gender", ""),
+                    "city": res.get("city", ""),
+                    "state": res.get("state", ""),
+                    "pincode": res.get("pincode", ""),
                 },
                 "work_history": res.get("work_history", []),
                 "salary": {},
                 "bank": {},
                 "tax": {}
             },
-            "filename": file.filename
+            "filename": ", ".join(filenames)
         }
     else:  # form16
-        f16 = _parse_form16(text)
-        bank = _extract_bank_details(text)
+        f16 = {}
+        bank_details = {}
+        is_fallback = False
+        if client and uploaded_gemini_files:
+            prompt = """
+Extract the following information from this Form 16 document (which may contain Part A and Part B). 
+If a field is not found, leave it as an empty string.
+Format the output as a valid JSON object.
+Required fields:
+- pan_number
+- tan_number
+- uan_number
+- pf_account_number
+- employer_name (Only the name of the employer/company. Do not include the address or any extra text like 'and address of the Employer'.)
+- financial_year (e.g. 2023-24)
+- assessment_year
+- gross_salary
+- basic_salary
+- hra
+- special_allowance
+- total_deductions
+- tds_deducted
+- net_taxable_income
+- annual_ctc
+- pf_deduction
+- bank_account_number
+- bank_ifsc_code
+- bank_name
+- account_holder_name
+"""
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[*uploaded_gemini_files, prompt],
+                    config={"response_mime_type": "application/json"}
+                )
+                f16 = json.loads(response.text)
+            except Exception as e:
+                print("Gemini parsing failed, fallback to regex:", e)
+                is_fallback = True
+                f16 = _parse_form16(full_text)
+                bank_details = _extract_bank_details(full_text)
+        else:
+            is_fallback = True
+            f16 = _parse_form16(full_text)
+            bank_details = _extract_bank_details(full_text)
+            
+        # Cleanup temp files and Gemini files
+        for path in temp_files_paths:
+            try: os.remove(path)
+            except: pass
+        if client:
+            for g_file in uploaded_gemini_files:
+                try: client.files.delete(name=g_file.name)
+                except: pass
+            
         return {
+            "is_fallback": is_fallback,
             "data": {
                 "personal": {
-                    "pan_number": f16.get("pan_number") or (PAN_RE.search(text).group(1) if PAN_RE.search(text) else ""),
-                    "uan_number": f16.get("uan_number") or "",
-                    "pf_number": f16.get("pf_account_number") or "",
+                    "pan_number": f16.get("pan_number", ""),
+                    "tan_number": f16.get("tan_number", ""),
+                    "uan_number": f16.get("uan_number", ""),
+                    "pf_number": f16.get("pf_account_number", ""),
                 },
                 "work_history": [],
                 "salary": {
-                    "ctc": f16.get("annual_ctc") or f16.get("gross_salary"),
-                    "basic": f16.get("basic_salary"),
-                    "hra": f16.get("hra"),
-                    "special_allowance": f16.get("special_allowance"),
-                    "pf_contribution": f16.get("pf_deduction"),
-                    "gross_salary": f16.get("gross_salary"),
-                    "tds_deducted": f16.get("tds_deducted"),
-                    "net_taxable_income": f16.get("net_taxable_income"),
-                    "employer_name": f16.get("employer_name"),
-                    "financial_year": f16.get("financial_year"),
-                    "assessment_year": f16.get("assessment_year"),
+                    "ctc": f16.get("annual_ctc") or f16.get("gross_salary", ""),
+                    "basic": f16.get("basic_salary", ""),
+                    "hra": f16.get("hra", ""),
+                    "special_allowance": f16.get("special_allowance", ""),
+                    "pf_contribution": f16.get("pf_deduction", ""),
+                    "gross_salary": f16.get("gross_salary", ""),
+                    "tds_deducted": f16.get("tds_deducted", ""),
+                    "net_taxable_income": f16.get("net_taxable_income", ""),
+                    "employer_name": f16.get("employer_name", ""),
+                    "financial_year": f16.get("financial_year", ""),
+                    "assessment_year": f16.get("assessment_year", ""),
                 },
-                "bank": bank,
+                "bank": {
+                    "account_number": f16.get("bank_account_number") or bank_details.get("account_number", ""),
+                    "ifsc_code": f16.get("bank_ifsc_code") or bank_details.get("ifsc_code", ""),
+                    "bank_name": f16.get("bank_name") or bank_details.get("bank_name", ""),
+                    "account_holder_name": f16.get("account_holder_name") or bank_details.get("account_holder_name", ""),
+                },
                 "tax": {
-                    "financial_year": f16.get("financial_year"),
-                    "assessment_year": f16.get("assessment_year"),
-                    "tds_deducted": f16.get("tds_deducted"),
+                    "financial_year": f16.get("financial_year", ""),
+                    "assessment_year": f16.get("assessment_year", ""),
+                    "tds_deducted": f16.get("tds_deducted", ""),
                 }
             },
-            "filename": file.filename
+            "filename": ", ".join(filenames)
         }
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -283,23 +418,23 @@ def _parse_form16(text: str) -> dict:
 @router.post("/{employee_id}/parse-resume")
 async def parse_resume(
     employee_id: uuid.UUID,
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: Employee = Depends(get_current_user),
 ):
     if str(current_user.id) != str(employee_id) and not is_hr_or_admin(current_user):
         raise HTTPException(403, "Access denied")
-    text = _get_text(await file.read(), file.filename.rsplit(".", 1)[-1].lower())
-    return {"parsed": _parse_resume(text), "source": "resume", "filename": file.filename}
+    result = await _process_extraction(files, "resume")
+    return {"parsed": result["data"], "source": "resume", "filename": result["filename"]}
 
 @router.post("/{employee_id}/parse-form16")
 async def parse_form16(
     employee_id: uuid.UUID,
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: Employee = Depends(get_current_user),
 ):
     if str(current_user.id) != str(employee_id) and not is_hr_or_admin(current_user):
         raise HTTPException(403, "Access denied")
-    text = _get_text(await file.read(), file.filename.rsplit(".", 1)[-1].lower())
-    return {"parsed": _parse_form16(text), "source": "form16", "filename": file.filename}
+    result = await _process_extraction(files, "form16")
+    return {"parsed": result["data"], "source": "form16", "filename": result["filename"]}
