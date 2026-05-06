@@ -31,7 +31,8 @@ def _send_email(to: List[str], subject: str, html_body: str, cc: List[str] = Non
     all_recipients = to + cc
 
     try:
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15)
+        # Force IPv4 by binding to 0.0.0.0 to prevent Errno 101 (Network is unreachable) with IPv6
+        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15, source_address=('0.0.0.0', 0))
         server.ehlo()
         server.starttls()
         server.ehlo()
