@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     COMPANY_DOMAIN: str = "intellativ.com"
     # FRONTEND_URL: str = "http://localhost:3000"
     FRONTEND_URL: str ="https://intellativ-hr-frontend.onrender.com"
+    GEMINI_KEY: str = ""
 
     @property
     def allowed_extensions_list(self) -> List[str]:
