@@ -13,6 +13,10 @@ from app.db.database import get_db
 from app.models.models import Employee
 from app.core.deps import get_current_user, is_hr_or_admin
 from google import genai
+from app.core.config import settings
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # ── regex patterns ─────────────────────────────────────────────────────────────
 
@@ -70,7 +74,7 @@ async def _process_extraction(files: List[UploadFile], source: str):
             tmp.write(content)
             temp_files_paths.append(tmp.name)
             
-    gemini_key = os.getenv("GEMINI_KEY") or os.getenv("GEMINI_key") or "AIzaSyCUw4jPdmm_ijNnikkb1wo1MaicyKRhnEg"
+    gemini_key = settings.GEMINI_KEY or os.getenv("GEMINI_KEY") or "AIzaSyCUw4jPdmm_ijNnikkb1wo1MaicyKRhnEg"
     client = genai.Client(api_key=gemini_key) if gemini_key else None
     
     uploaded_gemini_files = []
